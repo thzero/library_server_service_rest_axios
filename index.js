@@ -8,7 +8,6 @@ import Utility from '@thzero/library_common/utility';
 
 import RestCommunicationService from '@thzero/library_server/service/restCommunication';
 
-const separator = ': ';
 const contentType = 'Content-Type';
 const contentTypeJson = 'application/json';
 
@@ -17,6 +16,12 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		super();
 
 		this._serviceAuth = null;
+	}
+
+	async init(injector) {
+		await super.init(injector);
+
+		this._serviceAuth = this._injector.getService(LibraryConstants.InjectorKeys.SERVICE_AUTH);
 	}
 
 	async delete(key, url, options) {
@@ -37,12 +42,6 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 	async getById(key, url, id, options) {
 		const executor = await this._create(key, options);
 		return this._validate(await executor.get(Utility.formatUrlParams(url, id)));
-	}
-
-	async init(injector) {
-		await super.init(injector);
-
-		this._serviceAuth = this._injector.getService(LibraryConstants.InjectorKeys.SERVICE_AUTH);
 	}
 
 	async post(key, url, body, options) {
