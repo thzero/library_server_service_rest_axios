@@ -63,6 +63,8 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		const headers = {};
 		headers[LibraryConstants.Headers.AuthKeys.API] = config.apiKey;
 		headers[LibraryConstants.Headers.CorrelationId] = Utility.generateId();
+		if (opts && opts.token)
+			headers[LibraryConstants.Headers.AuthKeys.AUTH] = LibraryConstants.Headers.AuthKeys.AUTH_BEARER + separator + opts.token;
 		headers[contentType] = contentTypeJson;
 
 		let options = {
