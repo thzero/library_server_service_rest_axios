@@ -123,7 +123,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			// if (response.data.results && response.data.results.data) {
 			// 	const dataCheck = crc32(JSON.stringify(response.data.results)).toString(16)
 			// 	if (!response.data.check != dataCheck)
-			// 		return this._error()
+			// 		return this._error('AxiosRestCommunicationService', '_validate', 'Invalid CRC check')
 			// }
 			return response.data;
 		}
@@ -131,7 +131,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		if (response.status === 401)
 			this._serviceAuth.tokenUser(null, true);
 
-		return this._error();
+		return this._error('AxiosRestCommunicationService', '_validate', 'Not valid response');
 	}
 }
 
