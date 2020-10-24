@@ -16,12 +16,14 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		super();
 
 		this._serviceAuth = null;
+		this._serviceDiscoveryResources = null;
 	}
 
 	async init(injector) {
 		await super.init(injector);
 
 		this._serviceAuth = this._injector.getService(LibraryConstants.InjectorKeys.SERVICE_AUTH);
+		this._serviceDiscoveryResources = this._injector.getService(LibraryConstants.InjectorKeys.SERVICE_DISCOVERY_RESOURCES);
 	}
 
 	async delete(correlationId, key, url, options) {
@@ -56,9 +58,11 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 
 	async _create(correlationId, key, opts) {
 		const config = this._config.getBackend(key);
-		let baseUrl = config.baseUrl;
+		// let baseUrl = config.baseUrl;
+		let baseUrl = this._determineUrl(correlationId, config, key);
+		this._enforceNotNull('AxiosRestCommunicationService', '_create', baseUrl, 'baseUrl', correlationId);
 		if (!baseUrl.endsWith('/'))
-			baseUrl += '/';
+		baseUrl += '/';
 
 		const headers = {};
 		headers[LibraryConstants.Headers.AuthKeys.API] = config.apiKey;
@@ -116,6 +120,20 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		});
 
 		return instance;
+	}
+
+	async _determineUrl(correlationId, config, key) {
+		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config, 'config', correlationId);
+		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', key, 'key', correlationId);
+
+		let baseUrl = config.baseUrl;
+		if (config.discoverable) {
+			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.disoveryName, 'disoveryName', correlationId);
+
+			baseUrl = this._serviceDiscoveryResources.getService(correlationId, config.disoveryName);
+		}
+
+		return baseUrl;
 	}
 
 	_validate(correlationId, response) {
