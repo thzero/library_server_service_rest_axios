@@ -126,14 +126,12 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config, 'config', correlationId);
 		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', key, 'key', correlationId);
 
-		let baseUrl = null;
+		let baseUrl = config.baseUrl;
 		if (config.discoverable) {
 			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.disoveryName, 'disoveryName', correlationId);
 
 			baseUrl = this._serviceDiscoveryResources.getService(correlationId, config.disoveryName);
 		}
-		else
-			baseUrl = config.baseUrl;
 
 		return baseUrl;
 	}
