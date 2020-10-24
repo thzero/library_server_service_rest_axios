@@ -56,22 +56,6 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		return this._validate(correlationId, await executor.post(Utility.formatUrlParams(url, id), body));
 	}
 
-	async _determineUrl(correlationId, config, key) {
-		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config, 'config', correlationId);
-		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', key, 'key', correlationId);
-
-		let baseUrl = null;
-		if (config.discoverable) {
-			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.disoveryName, 'disoveryName', correlationId);
-
-			baseUrl = this._serviceDiscoveryResources.getService(correlationId, config.disoveryName);
-		}
-		else
-			baseUrl = config.baseUrl;
-
-		return baseUrl;
-	}
-
 	async _create(correlationId, key, opts) {
 		const config = this._config.getBackend(key);
 		// let baseUrl = config.baseUrl;
@@ -136,6 +120,22 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		});
 
 		return instance;
+	}
+
+	async _determineUrl(correlationId, config, key) {
+		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config, 'config', correlationId);
+		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', key, 'key', correlationId);
+
+		let baseUrl = null;
+		if (config.discoverable) {
+			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.disoveryName, 'disoveryName', correlationId);
+
+			baseUrl = this._serviceDiscoveryResources.getService(correlationId, config.disoveryName);
+		}
+		else
+			baseUrl = config.baseUrl;
+
+		return baseUrl;
 	}
 
 	_validate(correlationId, response) {
