@@ -62,7 +62,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		let baseUrl = this._determineUrl(correlationId, config, key);
 		this._enforceNotNull('AxiosRestCommunicationService', '_create', baseUrl, 'baseUrl', correlationId);
 		if (!baseUrl.endsWith('/'))
-		baseUrl += '/';
+			baseUrl += '/';
 
 		const headers = {};
 		headers[LibraryConstants.Headers.AuthKeys.API] = config.apiKey;
@@ -130,7 +130,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		if (config.discoverable) {
 			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.disoveryName, 'disoveryName', correlationId);
 
-			baseUrl = this._serviceDiscoveryResources.getService(correlationId, config.disoveryName);
+			baseUrl = this._serviceDiscoveryResources.getService(correlationId, config.disoveryName) + config.baseUrl;
 		}
 
 		return baseUrl;
