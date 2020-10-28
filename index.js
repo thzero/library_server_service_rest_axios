@@ -1,4 +1,5 @@
-import axios from 'axios'
+import axios from 'axios';
+import { Mutex as asyncMutex } from 'async-mutex';
 
 // import crc32 from 'crc/crc32'
 
@@ -15,8 +16,12 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 	constructor() {
 		super();
 
+		this._mutex = new asyncMutex();
+
 		this._serviceAuth = null;
 		this._serviceDiscoveryResources = null;
+
+		this._baseUrls = new Map();
 	}
 
 	async init(injector) {
@@ -128,9 +133,29 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 
 		let baseUrl = config.baseUrl;
 		if (config.discoverable) {
-			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.disoveryName, 'disoveryName', correlationId);
+			baseUrl = this._baseUrls.get(name);
+			if (!baseUrl)
+				return baseUrl;
 
-			baseUrl = this._serviceDiscoveryResources.getService(correlationId, config.disoveryName) + config.baseUrl;
+			const release = await this._mutex.acquire();
+			try {
+				let service = this._baseUrls.get(name);
+				if (!service)
+					return this._successResponse(service, correlationId);
+
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.discoveryName, 'discoveryName', correlationId);
+
+				const result = this._serviceDiscoveryResources.getService(correlationId, config.discoveryName);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', result, 'result', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', result.Address, 'result.Address', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', result.Meta, 'result.Meta', correlationId);
+
+				baseUrl = `http${result.Meta.secure ? 's' : ''}s://${result.Address}${result.Port ? `:${result.Port}` : ''}` + cofnig.discoveryRoot;
+				this._baseUrls.set(name, baseUrl);
+			}
+			finally {
+				release();
+			}
 		}
 
 		return baseUrl;
