@@ -132,26 +132,30 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', key, 'key', correlationId);
 
 		let baseUrl = config.baseUrl;
-		if (config.discoverable) {
+		if (this._serviceDiscoveryResources && config.discoverable) {
 			baseUrl = this._baseUrls.get(name);
-			if (!baseUrl)
+			if (baseUrl)
 				return baseUrl;
 
 			const release = await this._mutex.acquire();
 			try {
-				let service = this._baseUrls.get(name);
-				if (!service)
-					return this._successResponse(service, correlationId);
+				baseUrl = this._baseUrls.get(name);
+				if (baseUrl)
+					return baseUrl;
 
 				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.discoveryName, 'discoveryName', correlationId);
 
-				const result = this._serviceDiscoveryResources.getService(correlationId, config.discoveryName);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', result, 'result', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', result.Address, 'result.Address', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', result.Meta, 'result.Meta', correlationId);
+				const response = await this._serviceDiscoveryResources.getService(correlationId, config.discoveryName);
+				if (!response.success)
+					return null;
 
-				baseUrl = `http${result.Meta.secure ? 's' : ''}s://${result.Address}${result.Port ? `:${result.Port}` : ''}` + cofnig.discoveryRoot;
-				this._baseUrls.set(name, baseUrl);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results, 'result', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.Address, 'result.Address', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.Meta, 'result.Meta', correlationId);
+
+				baseUrl = `http${response.results.Meta.secure ? 's' : ''}://${response.results.Address}${response.results.Port ? `:${response.results.Port}` : ''}`;
+				baseUrl = !String.isNullOrEmpty(config.discoveryRoot) ? baseUrl + config.discoveryRoot : baseUrl;
+				this._baseUrls.set(key, baseUrl);
 			}
 			finally {
 				release();
