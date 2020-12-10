@@ -64,7 +64,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 	async _create(correlationId, key, opts) {
 		const config = this._config.getBackend(key);
 		// let baseUrl = config.baseUrl;
-		let baseUrl = this._determineUrl(correlationId, config, key);
+		let baseUrl = await this._determineUrl(correlationId, config, key);
 		this._enforceNotNull('AxiosRestCommunicationService', '_create', baseUrl, 'baseUrl', correlationId);
 		if (!baseUrl.endsWith('/'))
 			baseUrl += '/';
@@ -150,10 +150,11 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 					return null;
 
 				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results, 'result', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.Address, 'result.Address', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.Meta, 'result.Meta', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.address, 'result.address', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.port, 'result.address', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.secure, 'result.secure', correlationId);
 
-				baseUrl = `http${response.results.Meta.secure ? 's' : ''}://${response.results.Address}${response.results.Port ? `:${response.results.Port}` : ''}`;
+				baseUrl = `http${response.results.secure ? 's' : ''}://${response.results.address}${response.results.port ? `:${response.results.port}` : ''}`;
 				baseUrl = !String.isNullOrEmpty(config.discoveryRoot) ? baseUrl + config.discoveryRoot : baseUrl;
 				this._baseUrls.set(key, baseUrl);
 			}
@@ -176,8 +177,17 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			return response.data;
 		}
 
-		if (response.status === 401)
-			this._serviceAuth.tokenUser(null, true);
+		if (response.status === 401) {
+			if (this._serviceAuth) {
+				if (this._serviceAuth.tokenUser)
+					this._serviceAuth.tokenUser(null, true);
+			}
+
+			return this._error('AxiosRestCommunicationService', '_validate', 'Invalid authorization', null, null, null, correlationId);
+		}
+
+		if (response.status === 404)
+			return this._error('AxiosRestCommunicationService', '_validate', 'Resource not found', null, null, null, correlationId);
 
 		return this._error('AxiosRestCommunicationService', '_validate', 'Not valid response', null, null, null, correlationId);
 	}
