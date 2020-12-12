@@ -149,10 +149,14 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 				if (!response.success)
 					return null;
 
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results, 'result', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.address, 'result.address', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.port, 'result.address', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.secure, 'result.secure', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results, 'results', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.address, 'results.address', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.port, 'results.address', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.secure, 'results.secure', correlationId);
+				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.local, 'results.local', correlationId);
+
+				if (response.results.local)
+					response.results.address = response.results.address.replace('.', '_');
 
 				baseUrl = `http${response.results.secure ? 's' : ''}://${response.results.address}${response.results.port ? `:${response.results.port}` : ''}`;
 				baseUrl = !String.isNullOrEmpty(config.discoveryRoot) ? baseUrl + config.discoveryRoot : baseUrl;
