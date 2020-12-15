@@ -152,11 +152,16 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results, 'results', correlationId);
 				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.address, 'results.address', correlationId);
 				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.port, 'results.address', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.secure, 'results.secure', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.local, 'results.local', correlationId);
 
-				if (response.results.local)
-					response.results.address = response.results.address.replace('.', '_');
+				if (response.results.dns) {
+					const temp = [];
+					temp.push(response.results.dns.label);
+					if (!String.isNullOrEmpty(response.results.dns.namespace))
+						temp.push(response.results.dns.namespace);
+					if (response.results.dns.local)
+						temp.push('local');
+					response.results.address = temp.join('.');
+				}
 
 				baseUrl = `http${response.results.secure ? 's' : ''}://${response.results.address}${response.results.port ? `:${response.results.port}` : ''}`;
 				baseUrl = !String.isNullOrEmpty(config.discoveryRoot) ? baseUrl + config.discoveryRoot : baseUrl;
