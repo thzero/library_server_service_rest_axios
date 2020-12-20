@@ -21,7 +21,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		this._serviceAuth = null;
 		this._serviceDiscoveryResources = null;
 
-		this._baseUrls = new Map();
+		this._urls = new Map();
 	}
 
 	async init(injector) {
@@ -63,7 +63,6 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 
 	async _create(correlationId, key, opts) {
 		const config = this._config.getBackend(key);
-		// let baseUrl = config.baseUrl;
 		let baseUrl = await this._determineUrl(correlationId, config, key);
 		this._enforceNotNull('AxiosRestCommunicationService', '_create', baseUrl, 'baseUrl', correlationId);
 		if (!baseUrl.endsWith('/'))
@@ -131,48 +130,57 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config, 'config', correlationId);
 		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', key, 'key', correlationId);
 
-		let baseUrl = config.baseUrl;
-		if (this._serviceDiscoveryResources && config.discoverable) {
-			baseUrl = this._baseUrls.get(name);
-			if (baseUrl)
-				return baseUrl;
+		let url = config.baseUrl;
 
-			const release = await this._mutex.acquire();
-			try {
-				baseUrl = this._baseUrls.get(name);
-				if (baseUrl)
-					return baseUrl;
+		this._logger.debug('AxiosRestCommunicationService', '_determineUrl', 'config.discoverable.enabled', config.discoverable.enabled, correlationId);
+		const enabled = config.discoverable.enabled === false ? false : true;
+		this._logger.debug('AxiosRestCommunicationService', '_determineUrl', 'enabled', enabled, correlationId);
+		if (!enabled)
+			return url;
 
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.discoveryName, 'discoveryName', correlationId);
+		url = this._urls.get(key);
+		if (url)
+			return url;
 
-				const response = await this._serviceDiscoveryResources.getService(correlationId, config.discoveryName);
-				if (!response.success)
-					return null;
+		const release = await this._mutex.acquire();
+		try {
+			url = this._urls.get(key);
+			if (url)
+				return url;
 
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results, 'results', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.address, 'results.address', correlationId);
-				this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.port, 'results.address', correlationId);
+			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.discoverable.name, 'discoveryName', correlationId);
 
-				if (response.results.dns) {
-					const temp = [];
-					temp.push(response.results.dns.label);
-					if (!String.isNullOrEmpty(response.results.dns.namespace))
-						temp.push(response.results.dns.namespace);
-					if (response.results.dns.local)
-						temp.push('local');
-					response.results.address = temp.join('.');
-				}
+			const response = await this._serviceDiscoveryResources.getService(correlationId, config.discoverable.name);
+			if (!response.success)
+				return null;
 
-				baseUrl = `http${response.results.secure ? 's' : ''}://${response.results.address}${response.results.port ? `:${response.results.port}` : ''}`;
-				baseUrl = !String.isNullOrEmpty(config.discoveryRoot) ? baseUrl + config.discoveryRoot : baseUrl;
-				this._baseUrls.set(key, baseUrl);
+			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results, 'results', correlationId);
+			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.port, 'results.address', correlationId);
+
+			let port = response.results.port ? response.results.port : null;
+			const secure = response.results.secure ? response.results.secure : false;
+
+			let address = response.results.address;
+			if (response.results.dns) {
+				const temp = [];
+				temp.push(response.results.dns.label);
+				if (!String.isNullOrEmpty(response.results.dns.namespace))
+					temp.push(response.results.dns.namespace);
+				if (response.results.dns.local)
+					temp.push('local');
+					address = temp.join('.');
 			}
-			finally {
-				release();
-			}
+
+			this._enforceNotNull('AxiosRestCommunicationService', '_host', url, 'url', correlationId);
+
+			url = `http${secure ? 's' : ''}://${address}${port ? `:${port}` : ''}`;
+			this._urls.set(key, url);
+		}
+		finally {
+			release();
 		}
 
-		return baseUrl;
+		return url;
 	}
 
 	_validate(correlationId, response) {
