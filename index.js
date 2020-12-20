@@ -63,13 +63,16 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 
 	async _create(correlationId, key, opts) {
 		const config = this._config.getBackend(key);
-		let baseUrl = await this._determineUrl(correlationId, config, key);
-		this._enforceNotNull('AxiosRestCommunicationService', '_create', baseUrl, 'baseUrl', correlationId);
+		let resource = await this._determineResource(correlationId, config, key);
+		this._enforceNotNull('AxiosRestCommunicationService', '_create', resource, 'resource', correlationId);
+		this._enforceNotNull('AxiosRestCommunicationService', '_create', resource.url, 'resource.url', correlationId);
+
+		let baseUrl = resource.url;
 		if (!baseUrl.endsWith('/'))
 			baseUrl += '/';
 
 		const headers = {};
-		headers[LibraryConstants.Headers.AuthKeys.API] = config.apiKey;
+		headers[LibraryConstants.Headers.AuthKeys.API] = resource.authentication ? resource.resource.apiKey : null;
 		if (!correlationId)
 			correlationId = opts.correlationId = Utility.generateId();
 		headers[LibraryConstants.Headers.CorrelationId] = correlationId;
@@ -126,36 +129,41 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		return instance;
 	}
 
-	async _determineUrl(correlationId, config, key) {
-		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config, 'config', correlationId);
-		this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', key, 'key', correlationId);
+	async _determineResource(correlationId, config, key) {
+		this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', config, 'config', correlationId);
+		this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', key, 'key', correlationId);
 
-		let url = config.baseUrl;
+		let resource = {
+			url: config.baseUrl,
+			authentication: {
+				apiKey: config.apiKey
+			}
+		};
 
-		this._logger.debug('AxiosRestCommunicationService', '_determineUrl', 'config.discoverable.enabled', config.discoverable.enabled, correlationId);
+		this._logger.debug('AxiosRestCommunicationService', '_determineResource', 'config.discoverable.enabled', config.discoverable.enabled, correlationId);
 		const enabled = config.discoverable.enabled === false ? false : true;
-		this._logger.debug('AxiosRestCommunicationService', '_determineUrl', 'enabled', enabled, correlationId);
+		this._logger.debug('AxiosRestCommunicationService', '_determineResource', 'enabled', enabled, correlationId);
 		if (!enabled)
-			return url;
+			return resource;
 
-		url = this._urls.get(key);
-		if (url)
-			return url;
+		resource = this._urls.get(key);
+		if (resource)
+			return resource;
 
 		const release = await this._mutex.acquire();
 		try {
-			url = this._urls.get(key);
-			if (url)
-				return url;
+			resource = this._urls.get(key);
+			if (resource)
+				return resource;
 
-			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', config.discoverable.name, 'discoveryName', correlationId);
+			this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', config.discoverable.name, 'discoveryName', correlationId);
 
 			const response = await this._serviceDiscoveryResources.getService(correlationId, config.discoverable.name);
 			if (!response.success)
 				return null;
 
-			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results, 'results', correlationId);
-			this._enforceNotNull('AxiosRestCommunicationService', '_determineUrl', response.results.port, 'results.address', correlationId);
+			this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', response.results, 'results', correlationId);
+			this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', response.results.port, 'results.address', correlationId);
 
 			let port = response.results.port ? response.results.port : null;
 			const secure = response.results.secure ? response.results.secure : false;
@@ -171,16 +179,22 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 					address = temp.join('.');
 			}
 
-			this._enforceNotNull('AxiosRestCommunicationService', '_host', url, 'url', correlationId);
+			resource.authentication = response.results.authentication;
+			if (!resource.authentication)
+				resource.authentication = {};
+			if (config.apiKey)
+				resource.authentication.apiKey = config.apiKey;
 
-			url = `http${secure ? 's' : ''}://${address}${port ? `:${port}` : ''}`;
-			this._urls.set(key, url);
+			this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', url, 'url', correlationId);
+
+			resource.url = `http${secure ? 's' : ''}://${address}${port ? `:${port}` : ''}`;
+			this._urls.set(key, resource);
 		}
 		finally {
 			release();
 		}
 
-		return url;
+		return resource;
 	}
 
 	_validate(correlationId, response) {
