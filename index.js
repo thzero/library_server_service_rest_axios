@@ -90,7 +90,8 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			apiKey = resource.authentication.apiKey;
 		if (opts && opts.apiKey)
 			apiKey = opts.apiKey;
-		headers[LibraryConstants.Headers.AuthKeys.API] = apiKey;
+		if (!String.isNullOrEmpty(apiKey))
+			headers[LibraryConstants.Headers.AuthKeys.API] = apiKey;
 
 		if (!correlationId)
 			correlationId = opts.correlationId = Utility.generateId();
@@ -256,7 +257,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			// 	if (!response.data.check != dataCheck)
 			// 		return this._error('AxiosRestCommunicationService', '_validate', 'Invalid CRC check')
 			// }
-			return response.data;
+			return this._success(response.data, correlationId);
 		}
 
 		if (response.status === 401) {
