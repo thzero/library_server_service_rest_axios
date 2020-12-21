@@ -62,17 +62,36 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 	}
 
 	async _create(correlationId, key, opts) {
-		const config = this._config.getBackend(key);
-		let resource = await this._determineResource(correlationId, config, key);
-		this._enforceNotNull('AxiosRestCommunicationService', '_create', resource, 'resource', correlationId);
-		this._enforceNotNull('AxiosRestCommunicationService', '_create', resource.url, 'resource.url', correlationId);
+		let resource = null;
 
-		let baseUrl = resource.url;
+		let baseUrl = opts ? opts.url : null;
+		let timeout = opts ? opts.timeout : null;
+
+		if (String.isNullOrEmpty(baseUrl)) {
+			const config = this._config.getBackend(key);
+			if (opts.resource)
+				resource = await this._determineResource(correlationId, opts.resource);
+			else {
+				resource = await this._determineResourceFromConfig(correlationId, config, key);
+				timeout = config && config.timeout ? config.timeout : null;
+			}
+			this._enforceNotNull('AxiosRestCommunicationService', '_create', resource, 'resource', correlationId);
+			this._enforceNotNull('AxiosRestCommunicationService', '_create', resource.url, 'resource.url', correlationId);
+			baseUrl = resource.url;
+		}
+
 		if (!baseUrl.endsWith('/'))
 			baseUrl += '/';
 
 		const headers = {};
-		headers[LibraryConstants.Headers.AuthKeys.API] = resource.authentication ? resource.resource.apiKey : null;
+
+		let apiKey = null;
+		if (resource && resource.authentication)
+			apiKey = resource.authentication.apiKey;
+		if (opts && opts.apiKey)
+			apiKey = opts.apiKey;
+		headers[LibraryConstants.Headers.AuthKeys.API] = apiKey;
+
 		if (!correlationId)
 			correlationId = opts.correlationId = Utility.generateId();
 		headers[LibraryConstants.Headers.CorrelationId] = correlationId;
@@ -89,8 +108,8 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			}
 		};
 
-		if (config.timeout)
-			options.timeout = config.timeout;
+		if (timeout)
+			options.timeout = dtimeout;
 		options = { ...options, ...opts };
 
 		const instance = axios.create(options);
@@ -129,9 +148,35 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		return instance;
 	}
 
-	async _determineResource(correlationId, config, key) {
-		this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', config, 'config', correlationId);
-		this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', key, 'key', correlationId);
+	async _determineResource(correlationId, resource) {
+		this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', resource, 'resource', correlationId);
+
+		let port = resource.port ? resource.port : null;
+		const secure = resource.secure ? resource.secure : false;
+
+		let address = resource.address;
+		if (resource.dns) {
+			const temp = [];
+			temp.push(resource.dns.label);
+			if (!String.isNullOrEmpty(resource.dns.namespace))
+				temp.push(resource.dns.namespace);
+			if (resource.dns.local)
+				temp.push('local');
+				address = temp.join('.');
+		}
+
+		resource.authentication = resource.authentication;
+		if (!resource.authentication)
+			resource.authentication = {};
+
+		resource.url = `http${secure ? 's' : ''}://${address}${port ? `:${port}` : ''}`;
+
+		return resource;
+	}
+
+	async _determineResourceFromConfig(correlationId, config, key) {
+		this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', config, 'config', correlationId);
+		this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', key, 'key', correlationId);
 
 		let resource = {
 			url: config.baseUrl,
@@ -140,9 +185,9 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			}
 		};
 
-		this._logger.debug('AxiosRestCommunicationService', '_determineResource', 'config.discoverable.enabled', config.discoverable.enabled, correlationId);
+		this._logger.debug('AxiosRestCommunicationService', '_determineResourceFromConfig', 'config.discoverable.enabled', config.discoverable.enabled, correlationId);
 		const enabled = config.discoverable.enabled === false ? false : true;
-		this._logger.debug('AxiosRestCommunicationService', '_determineResource', 'enabled', enabled, correlationId);
+		this._logger.debug('AxiosRestCommunicationService', '_determineResourceFromConfig', 'enabled', enabled, correlationId);
 		if (!enabled)
 			return resource;
 
@@ -156,38 +201,44 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			if (resource)
 				return resource;
 
-			this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', config.discoverable.name, 'discoveryName', correlationId);
+			this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', config.discoverable.name, 'discoveryName', correlationId);
 
 			const response = await this._serviceDiscoveryResources.getService(correlationId, config.discoverable.name);
 			if (!response.success)
 				return null;
 
-			this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', response.results, 'results', correlationId);
-			this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', response.results.port, 'results.address', correlationId);
+			// this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', response.results, 'results', correlationId);
+			// this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', response.results.port, 'results.port', correlationId);
 
-			let port = response.results.port ? response.results.port : null;
-			const secure = response.results.secure ? response.results.secure : false;
+			// let port = response.results.port ? response.results.port : null;
+			// const secure = response.results.secure ? response.results.secure : false;
 
-			let address = response.results.address;
-			if (response.results.dns) {
-				const temp = [];
-				temp.push(response.results.dns.label);
-				if (!String.isNullOrEmpty(response.results.dns.namespace))
-					temp.push(response.results.dns.namespace);
-				if (response.results.dns.local)
-					temp.push('local');
-					address = temp.join('.');
-			}
+			// let address = response.results.address;
+			// if (response.results.dns) {
+			// 	const temp = [];
+			// 	temp.push(response.results.dns.label);
+			// 	if (!String.isNullOrEmpty(response.results.dns.namespace))
+			// 		temp.push(response.results.dns.namespace);
+			// 	if (response.results.dns.local)
+			// 		temp.push('local');
+			// 		address = temp.join('.');
+			// }
 
-			resource.authentication = response.results.authentication;
-			if (!resource.authentication)
-				resource.authentication = {};
+			// resource.authentication = response.results.authentication;
+			// if (!resource.authentication)
+			// 	resource.authentication = {};
+			// if (config.apiKey)
+			// 	resource.authentication.apiKey = config.apiKey;
+
+			// this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', url, 'url', correlationId);
+
+			// resource.url = `http${secure ? 's' : ''}://${address}${port ? `:${port}` : ''}`;
+
 			if (config.apiKey)
 				resource.authentication.apiKey = config.apiKey;
 
-			this._enforceNotNull('AxiosRestCommunicationService', '_determineResource', url, 'url', correlationId);
+			this._determineResource(config, response.results);
 
-			resource.url = `http${secure ? 's' : ''}://${address}${port ? `:${port}` : ''}`;
 			this._urls.set(key, resource);
 		}
 		finally {
