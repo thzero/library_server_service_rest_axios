@@ -208,33 +208,6 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			if (!response.success)
 				return null;
 
-			// this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', response.results, 'results', correlationId);
-			// this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', response.results.port, 'results.port', correlationId);
-
-			// let port = response.results.port ? response.results.port : null;
-			// const secure = response.results.secure ? response.results.secure : false;
-
-			// let address = response.results.address;
-			// if (response.results.dns) {
-			// 	const temp = [];
-			// 	temp.push(response.results.dns.label);
-			// 	if (!String.isNullOrEmpty(response.results.dns.namespace))
-			// 		temp.push(response.results.dns.namespace);
-			// 	if (response.results.dns.local)
-			// 		temp.push('local');
-			// 		address = temp.join('.');
-			// }
-
-			// resource.authentication = response.results.authentication;
-			// if (!resource.authentication)
-			// 	resource.authentication = {};
-			// if (config.apiKey)
-			// 	resource.authentication.apiKey = config.apiKey;
-
-			// this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', url, 'url', correlationId);
-
-			// resource.url = `http${secure ? 's' : ''}://${address}${port ? `:${port}` : ''}`;
-
 			if (config.apiKey)
 				resource.authentication.apiKey = config.apiKey;
 
