@@ -213,7 +213,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', config.discoverable.name, 'discoveryName', correlationId);
 
 			const response = await this._serviceDiscoveryResources.getService(correlationId, config.discoverable.name);
-			if (!response.success)
+			if (this._hasFailed(response))
 				return null;
 
 			if (config.apiKey)
