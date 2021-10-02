@@ -69,7 +69,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 
 		if (String.isNullOrEmpty(baseUrl)) {
 			const config = this._config.getBackend(key);
-			if (opts.resource)
+			if (opts && opts.resource)
 				resource = await this._determineResource(correlationId, opts.resource);
 			else {
 				resource = await this._determineResourceFromConfig(correlationId, config, key);
@@ -185,6 +185,14 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 				apiKey: config.apiKey
 			}
 		};
+		
+		this._logger.debug('AxiosRestCommunicationService', '_determineResourceFromConfig', 'config.discoverable', config.discoverable, correlationId);
+		if (!config.discoverable)
+			return resource;
+
+		this._logger.debug('AxiosRestCommunicationService', '_determineResourceFromConfig', '_serviceDiscoveryResources', (this._serviceDiscoveryResources != null), correlationId);
+		if (!this._serviceDiscoveryResources)
+			return resource;
 
 		this._logger.debug('AxiosRestCommunicationService', '_determineResourceFromConfig', 'config.discoverable.enabled', config.discoverable.enabled, correlationId);
 		const enabled = config.discoverable.enabled === false ? false : true;
