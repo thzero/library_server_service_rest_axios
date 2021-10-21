@@ -24,7 +24,7 @@
     "cli-update-w": ".\\node_modules\\.bin\\library-cli --updateversion --pi",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "dependencies": {m
+  "dependencies": {
     "axios": "^0.23.0"
   },
   "devDependencies": {
