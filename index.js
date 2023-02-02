@@ -3,9 +3,9 @@ import { Mutex as asyncMutex } from 'async-mutex';
 
 // import crc32 from 'crc/crc32'
 
-import LibraryConstants from '@thzero/library_server/constants';
+import LibraryServerConstants from '@thzero/library_server/constants';
 
-import Utility from '@thzero/library_common/utility';
+import LibraryCommonUtility from '@thzero/library_common/utility';
 
 import RestCommunicationService from '@thzero/library_server/service/restCommunication';
 
@@ -27,38 +27,38 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 	async init(injector) {
 		await super.init(injector);
 
-		this._serviceAuth = this._injector.getService(LibraryConstants.InjectorKeys.SERVICE_AUTH);
-		this._serviceDiscoveryResources = this._injector.getService(LibraryConstants.InjectorKeys.SERVICE_DISCOVERY_RESOURCES);
+		this._serviceAuth = this._injector.getService(LibraryServerConstants.InjectorKeys.SERVICE_AUTH);
+		this._serviceDiscoveryResources = this._injector.getService(LibraryServerConstants.InjectorKeys.SERVICE_DISCOVERY_RESOURCES);
 	}
 
 	async delete(correlationId, key, url, options) {
 		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.delete(Utility.formatUrl(url)));
+		return this._validate(correlationId, await executor.delete(LibraryCommonUtility.formatUrl(url)));
 	}
 
 	async deleteById(correlationId, key, url, id, options) {
 		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.delete(Utility.formatUrlParams(url, id)));
+		return this._validate(correlationId, await executor.delete(LibraryCommonUtility.formatUrlParams(url, id)));
 	}
 
 	async get(correlationId, key, url, options) {
 		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.get(Utility.formatUrl(url)));
+		return this._validate(correlationId, await executor.get(LibraryCommonUtility.formatUrl(url)));
 	}
 
 	async getById(correlationId, key, url, id, options) {
 		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.get(Utility.formatUrlParams(url, id)));
+		return this._validate(correlationId, await executor.get(LibraryCommonUtility.formatUrlParams(url, id)));
 	}
 
 	async post(correlationId, key, url, body, options) {
 		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.post(Utility.formatUrl(url), body));
+		return this._validate(correlationId, await executor.post(LibraryCommonUtility.formatUrl(url), body));
 	}
 
 	async postById(correlationId, key, url, id, body, options) {
 		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.post(Utility.formatUrlParams(url, id), body));
+		return this._validate(correlationId, await executor.post(LibraryCommonUtility.formatUrlParams(url, id), body));
 	}
 
 	async _create(correlationId, key, opts) {
@@ -91,14 +91,14 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		if (opts && opts.apiKey)
 			apiKey = opts.apiKey;
 		if (!String.isNullOrEmpty(apiKey))
-			headers[LibraryConstants.Headers.AuthKeys.API] = apiKey;
+			headers[LibraryServerConstants.Headers.AuthKeys.API] = apiKey;
 
 		if (!correlationId)
-			correlationId = opts.correlationId = Utility.generateId();
-		headers[LibraryConstants.Headers.CorrelationId] = correlationId;
+			correlationId = opts.correlationId = LibraryCommonUtility.generateId();
+		headers[LibraryServerConstants.Headers.CorrelationId] = correlationId;
 
 		if (opts && opts.token)
-			headers[LibraryConstants.Headers.AuthKeys.AUTH] = LibraryConstants.Headers.AuthKeys.AUTH_BEARER + separator + opts.token;
+			headers[LibraryServerConstants.Headers.AuthKeys.AUTH] = LibraryServerConstants.Headers.AuthKeys.AUTH_BEARER + separator + opts.token;
 		headers[contentType] = contentTypeJson;
 
 		let options = {
