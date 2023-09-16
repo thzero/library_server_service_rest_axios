@@ -3,11 +3,11 @@ import { Mutex as asyncMutex } from 'async-mutex';
 
 // import crc32 from 'crc/crc32'
 
-import LibraryServerConstants from '@thzero/library_server/constants';
+import LibraryServerConstants from '@thzero/library_server/constants.js';
 
-import LibraryCommonUtility from '@thzero/library_common/utility';
+import LibraryCommonUtility from '@thzero/library_common/utility/index.js';
 
-import RestCommunicationService from '@thzero/library_server/service/restCommunication';
+import RestCommunicationService from '@thzero/library_server/service/restCommunication.js';
 
 const contentType = 'Content-Type';
 const contentTypeJson = 'application/json';
