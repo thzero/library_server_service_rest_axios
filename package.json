@@ -2,11 +2,11 @@
   "name": "@thzero/library_server_service_rest_axios",
   "type": "module",
   "exports": "./index.js",
-  "version": "0.17.8",
+  "version": "0.17.9",
   "version_major": 0,
   "version_minor": 17,
-  "version_patch": 8,
-  "version_date": "01/01/2024",
+  "version_patch": 9,
+  "version_date": "01/17/2024",
   "author": "thZero",
   "license": "MIT",
   "repository": {
@@ -25,7 +25,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "axios": "^1.6.2"
+    "axios": "^1.6.5"
   },
   "peerDependencies": {
     "@thzero/library_common": "^0.17",
