@@ -238,7 +238,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			// 	if (!response.data.check != dataCheck)
 			// 		return this._error('AxiosRestCommunicationService', '_validate', 'Invalid CRC check')
 			// }
-			return this._successResponse(response.data, correlationId);
+			return response.data;
 		}
 
 		if (response.status === 401) {
