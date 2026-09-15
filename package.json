@@ -24,7 +24,9 @@
   },
   "scripts": {
     "cli-update": "library-cli --updateversion --pi",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test \"test/*.test.js\"",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "axios": "^1.20.0"
@@ -33,5 +35,8 @@
     "@thzero/library_common": "^0.18",
     "@thzero/library_common_service": "^0.18",
     "@thzero/library_server": "^0.18"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5"
   }
 }

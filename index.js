@@ -11,6 +11,7 @@ import RestCommunicationService from '@thzero/library_server/service/restCommuni
 
 const contentType = 'Content-Type';
 const contentTypeJson = 'application/json';
+const separator = ': ';
 
 class AxiosRestCommunicationService extends RestCommunicationService {
 	constructor() {
@@ -68,7 +69,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		let timeout = opts ? opts.timeout : null;
 
 		if (String.isNullOrEmpty(baseUrl)) {
-			const config = this._config.getBackend(key);
+			const config = this._config.getBackend(correlationId, key);
 			if (opts && opts.resource)
 				resource = await this._determineResource(correlationId, opts.resource);
 			else {
@@ -110,7 +111,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		};
 
 		if (timeout)
-			options.timeout = dtimeout;
+			options.timeout = timeout;
 		options = { ...options, ...opts };
 
 		const instance = axios.create(options);
@@ -163,10 +164,9 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 				temp.push(resource.dns.namespace);
 			if (resource.dns.local)
 				temp.push('local');
-				address = temp.join('.');
+			address = temp.join('.');
 		}
 
-		resource.authentication = resource.authentication;
 		if (!resource.authentication)
 			resource.authentication = {};
 
@@ -190,7 +190,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		if (!config.discoverable)
 			return resource;
 
-		this._logger.debug('AxiosRestCommunicationService', '_determineResourceFromConfig', '_serviceDiscoveryResources', (this._serviceDiscoveryResources != null), correlationId);
+		this._logger.debug('AxiosRestCommunicationService', '_determineResourceFromConfig', '_serviceDiscoveryResources', LibraryCommonUtility.isNotNull(this._serviceDiscoveryResources), correlationId);
 		if (!this._serviceDiscoveryResources)
 			return resource;
 
@@ -200,15 +200,15 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		if (!enabled)
 			return resource;
 
-		resource = this._urls.get(key);
-		if (resource)
-			return resource;
+		let discovered = this._urls.get(key);
+		if (discovered)
+			return discovered;
 
 		const release = await this._mutex.acquire();
 		try {
-			resource = this._urls.get(key);
-			if (resource)
-				return resource;
+			discovered = this._urls.get(key);
+			if (discovered)
+				return discovered;
 
 			this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', config.discoverable.name, 'discoveryName', correlationId);
 
@@ -216,10 +216,10 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			if (this._hasFailed(response))
 				return null;
 
+			resource = await this._determineResource(correlationId, response.results);
+
 			if (config.apiKey)
 				resource.authentication.apiKey = config.apiKey;
-
-			this._determineResource(config, response.results);
 
 			this._urls.set(key, resource);
 		}
