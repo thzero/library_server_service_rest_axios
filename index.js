@@ -1,11 +1,11 @@
 import axios from 'axios';
-import { Mutex as asyncMutex } from 'async-mutex';
 
 // import crc32 from 'crc/crc32'
 
 import LibraryServerConstants from '@thzero/library_server/constants.js';
 
 import LibraryCommonUtility from '@thzero/library_common/utility/index.js';
+import LibraryMomentUtility from '@thzero/library_common/utility/moment.js';
 
 import RestCommunicationService from '@thzero/library_server/service/restCommunication.js';
 
@@ -13,16 +13,29 @@ const contentType = 'Content-Type';
 const contentTypeJson = 'application/json';
 const separator = ': ';
 
+// The keys on opts this service consumes itself. Anything else on opts is
+// handed to axios as request config for that one call.
+const optsOwn = new Set([ 'apiKey', 'correlationId', 'resource', 'timeout', 'token', 'url' ]);
+
 class AxiosRestCommunicationService extends RestCommunicationService {
 	constructor() {
 		super();
 
-		this._mutex = new asyncMutex();
-
 		this._serviceAuth = null;
 		this._serviceDiscoveryResources = null;
 
+		// baseURL -> axios instance. One per backend, with its interceptor, rather
+		// than one per call.
+		this._instances = new Map();
+
+		// key -> discovered resource. A failed discovery is remembered by time so a
+		// backend that is down is asked about once per retry window rather than on
+		// every call, and a discovery in flight is shared by the calls that arrive
+		// while it runs.
 		this._urls = new Map();
+		this._urlsFailed = new Map();
+		this._urlsPending = new Map();
+		this._urlsRetryMs = 5 * 1000;
 	}
 
 	async init(injector) {
@@ -33,35 +46,40 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 	}
 
 	async delete(correlationId, key, url, options) {
-		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.delete(LibraryCommonUtility.formatUrl(url)));
+		const request = await this._create(correlationId, key, options);
+		return this._validate(correlationId, await request.instance.delete(LibraryCommonUtility.formatUrl(url), request.config));
 	}
 
 	async deleteById(correlationId, key, url, id, options) {
-		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.delete(LibraryCommonUtility.formatUrlParams(url, id)));
+		const request = await this._create(correlationId, key, options);
+		return this._validate(correlationId, await request.instance.delete(LibraryCommonUtility.formatUrlParams(url, id), request.config));
 	}
 
 	async get(correlationId, key, url, options) {
-		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.get(LibraryCommonUtility.formatUrl(url)));
+		const request = await this._create(correlationId, key, options);
+		return this._validate(correlationId, await request.instance.get(LibraryCommonUtility.formatUrl(url), request.config));
 	}
 
 	async getById(correlationId, key, url, id, options) {
-		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.get(LibraryCommonUtility.formatUrlParams(url, id)));
+		const request = await this._create(correlationId, key, options);
+		return this._validate(correlationId, await request.instance.get(LibraryCommonUtility.formatUrlParams(url, id), request.config));
 	}
 
 	async post(correlationId, key, url, body, options) {
-		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.post(LibraryCommonUtility.formatUrl(url), body));
+		const request = await this._create(correlationId, key, options);
+		return this._validate(correlationId, await request.instance.post(LibraryCommonUtility.formatUrl(url), body, request.config));
 	}
 
 	async postById(correlationId, key, url, id, body, options) {
-		const executor = await this._create(correlationId, key, options);
-		return this._validate(correlationId, await executor.post(LibraryCommonUtility.formatUrlParams(url, id), body));
+		const request = await this._create(correlationId, key, options);
+		return this._validate(correlationId, await request.instance.post(LibraryCommonUtility.formatUrlParams(url, id), body, request.config));
 	}
 
+	// Resolves the backend and returns the shared axios instance for it, plus the
+	// config for this one call: the headers that vary per call (correlation id,
+	// api key, bearer token), the timeout, and whatever else on opts axios
+	// understands. This used to build a new instance, spread the whole config and
+	// register a new interceptor closure on every call.
 	async _create(correlationId, key, opts) {
 		let resource = null;
 
@@ -102,52 +120,17 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 			headers[LibraryServerConstants.Headers.AuthKeys.AUTH] = LibraryServerConstants.Headers.AuthKeys.AUTH_BEARER + separator + opts.token;
 		headers[contentType] = contentTypeJson;
 
-		let options = {
-			baseURL: baseUrl,
-			headers: headers,
-			validateStatus: function (status) {
-				return status >= 200 && status <= 503
-			}
-		};
-
+		const config = { headers: headers };
 		if (timeout)
-			options.timeout = timeout;
-		options = { ...options, ...opts };
-
-		const instance = axios.create(options);
-
-		// const unreliablePromise = (resolveOn, onReject) => () => {
-		// 	if (--resolveOn > 0) {
-		// 		onReject()
-		// 		return Promise.reject()
-		// 	}
-		// 	return Promise.resolve()
-		// }
-
-		//	 const retry = (retries, fn) => fn().catch(err => retries > 1 ? retry(retries - 1, fn) : Promise.reject(err))
-		//	 const pause = (duration) => new Promise(res => setTimeout(res, duration))
-		//	 const backoff = (retries, fn, delay = 500) =>
-		// 	fn().catch(err => retries > 1
-		//		? pause(delay).then(() => backoff(retries - 1, fn, delay * 2))
-		//		: Promise.reject(err))
-
-		// Add a response interceptor
-		instance.interceptors.response.use(function (response) {
-			// Any status code that lie within the range of 2xx cause this function to trigger
-			return response
-		},
-		function (error) {
-			// Any status codes that falls outside the range of 2xx cause this function to trigger// Any status codes that falls outside the range of 2xx cause this function to trigger
-			// await retry(3, unreliablePromise(3, log('Error'))).then(log('Resolved'))
-
-			if (error && error.response && error.response.status === 401) {
-				return this._serviceAuth.tokenUser(null, true).resolve()
+			config.timeout = timeout;
+		if (opts) {
+			for (const name of Object.keys(opts)) {
+				if (!optsOwn.has(name))
+					config[name] = opts[name];
 			}
+		}
 
-			return Promise.reject(error)
-		});
-
-		return instance;
+		return { instance: this._instance(baseUrl), config: config };
 	}
 
 	async _determineResource(correlationId, resource) {
@@ -179,13 +162,13 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', config, 'config', correlationId);
 		this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', key, 'key', correlationId);
 
-		let resource = {
+		const resource = {
 			url: config.baseUrl,
 			authentication: {
 				apiKey: config.apiKey
 			}
 		};
-		
+
 		this._logger.debug('AxiosRestCommunicationService', '_determineResourceFromConfig', 'config.discoverable', config.discoverable, correlationId);
 		if (!config.discoverable)
 			return resource;
@@ -200,34 +183,96 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		if (!enabled)
 			return resource;
 
-		let discovered = this._urls.get(key);
+		const discovered = this._urls.get(key);
 		if (discovered)
 			return discovered;
 
-		const release = await this._mutex.acquire();
-		try {
-			discovered = this._urls.get(key);
-			if (discovered)
-				return discovered;
+		// A failure used to cache nothing, so every call after it took the mutex
+		// and asked discovery again, one at a time.
+		const failed = this._urlsFailed.get(key);
+		if (failed && ((LibraryMomentUtility.getTimestamp() - failed) < this._urlsRetryMs))
+			return null;
 
-			this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', config.discoverable.name, 'discoveryName', correlationId);
-
-			const response = await this._serviceDiscoveryResources.getService(correlationId, config.discoverable.name);
-			if (this._hasFailed(response))
-				return null;
-
-			resource = await this._determineResource(correlationId, response.results);
-
-			if (config.apiKey)
-				resource.authentication.apiKey = config.apiKey;
-
-			this._urls.set(key, resource);
+		// One discovery per key at a time. Calls for the same key share it; calls
+		// for other keys are not held up by it, which the single mutex did.
+		let pending = this._urlsPending.get(key);
+		if (!pending) {
+			pending = this._discover(correlationId, config, key)
+				.finally(() => {
+					this._urlsPending.delete(key);
+				});
+			this._urlsPending.set(key, pending);
 		}
-		finally {
-			release();
+		return await pending;
+	}
+
+	async _discover(correlationId, config, key) {
+		this._enforceNotNull('AxiosRestCommunicationService', '_determineResourceFromConfig', config.discoverable.name, 'discoveryName', correlationId);
+
+		const response = await this._serviceDiscoveryResources.getService(correlationId, config.discoverable.name);
+		if (this._hasFailed(response)) {
+			this._urlsFailed.set(key, LibraryMomentUtility.getTimestamp());
+			return null;
 		}
 
+		const resource = await this._determineResource(correlationId, response.results);
+
+		if (config.apiKey)
+			resource.authentication.apiKey = config.apiKey;
+
+		this._urls.set(key, resource);
+		this._urlsFailed.delete(key);
 		return resource;
+	}
+
+	_instance(baseUrl) {
+		let instance = this._instances.get(baseUrl);
+		if (instance)
+			return instance;
+
+		instance = axios.create({
+			baseURL: baseUrl,
+			validateStatus: function (status) {
+				return status >= 200 && status <= 503
+			}
+		});
+
+		// const unreliablePromise = (resolveOn, onReject) => () => {
+		// 	if (--resolveOn > 0) {
+		// 		onReject()
+		// 		return Promise.reject()
+		// 	}
+		// 	return Promise.resolve()
+		// }
+
+		//	 const retry = (retries, fn) => fn().catch(err => retries > 1 ? retry(retries - 1, fn) : Promise.reject(err))
+		//	 const pause = (duration) => new Promise(res => setTimeout(res, duration))
+		//	 const backoff = (retries, fn, delay = 500) =>
+		// 	fn().catch(err => retries > 1
+		//		? pause(delay).then(() => backoff(retries - 1, fn, delay * 2))
+		//		: Promise.reject(err))
+
+		// Registered once per instance. The error handler used to be a plain
+		// function, so `this` inside it was undefined and its 401 branch threw a
+		// TypeError in place of what it meant to do. validateStatus accepts 401,
+		// so this handler only sees transport failures and 5xx above 503; the 401
+		// handling that actually runs is the one in _validate. This branch now
+		// does the same as that one, then rejects as an error should.
+		instance.interceptors.response.use(
+			(response) => response,
+			(error) => {
+				if (error && error.response && error.response.status === 401)
+					this._tokenUserClear();
+				return Promise.reject(error);
+			});
+
+		this._instances.set(baseUrl, instance);
+		return instance;
+	}
+
+	_tokenUserClear() {
+		if (this._serviceAuth && this._serviceAuth.tokenUser)
+			this._serviceAuth.tokenUser(null, true);
 	}
 
 	_validate(correlationId, response) {
@@ -242,11 +287,7 @@ class AxiosRestCommunicationService extends RestCommunicationService {
 		}
 
 		if (response.status === 401) {
-			if (this._serviceAuth) {
-				if (this._serviceAuth.tokenUser)
-					this._serviceAuth.tokenUser(null, true);
-			}
-
+			this._tokenUserClear();
 			return this._error('AxiosRestCommunicationService', '_validate', 'Invalid authorization', null, null, null, correlationId);
 		}
 
